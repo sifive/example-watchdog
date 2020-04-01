@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <unistd.h>
+#include <sys/times.h>
 
 #define WDOG_DESIRED_RATE 1000000 /* 1 MHz */
 #define WDOG_TIMEOUT_SECONDS 1
@@ -86,10 +88,21 @@ int main() {
 	metal_watchdog_run(wdog, METAL_WATCHDOG_RUN_ALWAYS);
 
 	/* If the watchdog doesn't fire after twice the requested timeout, fail */
+#ifdef _PICOLIBC__
+	long timebase = sysconf(_SC_CLK_TCK);
+	struct tms tms;
+	clock_t timeout = times(&tms) + 2 * WDOG_TIMEOUT_SECONDS * timebase;
+#else
 	time_t timeout = time(NULL) + (2 * WDOG_TIMEOUT_SECONDS);
-	
+#endif
 	while (!caught_wdog_int) {
-		if (time(NULL) > timeout) {
+#ifdef _PICOLIBC__
+		if (times(&tms) > timeout)
+#else
+		if (time(NULL) > timeout)
+#endif
+		{
+
 			/* Stop the watchdog */
 			metal_watchdog_run(wdog, METAL_WATCHDOG_STOP);
 
