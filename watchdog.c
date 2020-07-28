@@ -15,8 +15,8 @@
 
 bool caught_wdog_int = false;
 
-void wdog_handler(int id, void *data) {
-	struct metal_watchdog *wdog = (struct metal_watchdog *) data;
+void metal_watchdog_handler(void) {
+	struct metal_watchdog wdog = metal_watchdog_get_device(0);
 
 	/* Stop the watchdog and clear the interrupt*/
 	metal_watchdog_run(wdog, METAL_WATCHDOG_STOP);
@@ -28,38 +28,7 @@ void wdog_handler(int id, void *data) {
 }
 
 int main() {
-	int rc;
-
-	/* Get CPU and Watchdog device handles */
-	struct metal_cpu *cpu = metal_cpu_get(metal_cpu_get_current_hartid());
-	if (!cpu) {
-		exit(1);
-	}
-
-	struct metal_watchdog *wdog = metal_watchdog_get_device(0);
-	if (!wdog) {
-		exit(3);
-	}
-
-	/* Initialize CPU and Watchdog interrupts */
-	struct metal_interrupt *cpu_intr = metal_cpu_interrupt_controller(cpu);
-	if (!cpu_intr) {
-		exit(2);
-	}
-	metal_interrupt_init(cpu_intr);
-
-	struct metal_interrupt *wdog_intr = metal_watchdog_get_interrupt(wdog);
-	if (!wdog_intr) {
-		exit(4);
-	}
-	metal_interrupt_init(wdog_intr);
-	int wdog_id = metal_watchdog_get_interrupt_id(wdog);
-
-	/* Register an interrupt handler for the watchdog */
-	rc = metal_interrupt_register_handler(wdog_intr, wdog_id, wdog_handler, wdog);
-	if (rc != 0) {
-		exit(rc * -1);
-	}
+	struct metal_watchdog wdog = metal_watchdog_get_device(0);
 
 	/* Try to set the watchdog rate */
 	const long int rate = metal_watchdog_set_rate(wdog, WDOG_DESIRED_RATE);
@@ -71,14 +40,8 @@ int main() {
 	metal_watchdog_set_result(wdog, METAL_WATCHDOG_INTERRUPT);
 
 	/* Enable interrupts */
-	rc = metal_interrupt_enable(wdog_intr, wdog_id);
-	if (rc != 0) {
-		exit(5);
-	}
-	rc = metal_interrupt_enable(cpu_intr, 0);
-	if (rc != 0) {
-		exit(6);
-	}
+	metal_watchdog_enable_interrupt(wdog);
+	metal_cpu_enable_interrupts();
 
 	puts("Starting watchdog\n");
 
